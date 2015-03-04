@@ -90,3 +90,12 @@ body {
     border-bottom: 0;
   }
 }
+
+img {
+    max-width: 100%;
+}
+
+img.observed {
+    width: 50%;
+    padding: 3%;
+}
