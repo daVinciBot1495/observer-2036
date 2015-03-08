@@ -51,4 +51,43 @@ if (app.get('env') === 'production') {
     });
 }
 
+var Canvas = require('canvas');
+var request = require('request');
+var ImageDownloader = require('./lib/image-downloader').ImageDownloader;
+
+function sendError(res, status, message) {
+    res.status(status).json({
+	message: message
+    });
+}
+
+/**
+ * An API that applies a filter to an image. Currently, this API just downloads
+ * the specified image, converts it to a data URL, and returns it.
+ *
+ * TODO: Implement filtering
+ *
+ * @param req.body.url {String} The url of the image to be filtered.
+ * @return {String} The data URL representation of the filtered image.
+ */
+app.post('/api/filter', function (req, res) {
+    if (!req.body.url) {
+	sendError(res, 400, 'No image URL provided');
+    } else {
+	var imageDownloader = new ImageDownloader(Canvas, request);
+	imageDownloader.get(req.body.url).then(function (img) {
+	    var canvas = new Canvas(img.width, img.height);
+	    var context = canvas.getContext('2d');
+	    context.drawImage(img, 0, 0);
+	    res.send(canvas.toDataURL());
+	}).catch(function (err) {
+	    if ('ENOTFOUND' == err.code) {
+		sendError(res, 404, 'The provided image was not found');
+	    } else {
+		sendError(res, 500, 'Error converting provided resource to image');
+	    }
+	});
+    }
+});
+
 module.exports = app;
