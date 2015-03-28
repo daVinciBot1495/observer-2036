@@ -53,7 +53,18 @@ if (app.get('env') === 'production') {
 
 var Canvas = require('canvas');
 var request = require('request');
+var ImageCreator = require('./lib/image-creator').ImageCreator;
+var ImageFilterer = require('./lib/image-filterer').ImageFilterer;
 var ImageDownloader = require('./lib/image-downloader').ImageDownloader;
+
+var imageFilterer = new ImageFilterer(new ImageCreator(new Canvas()));
+// var weights = imageFilterer.gaussianFilter(9, 2.0);
+var weights = imageFilterer.gaborFilter(
+    9,
+    1.5 * Math.PI,
+    4 * Math.PI / 4,
+    2.0,
+    1.0);
 
 function sendError(res, status, message) {
     res.status(status).json({
@@ -65,7 +76,7 @@ function sendError(res, status, message) {
  * An API that applies a filter to an image. Currently, this API just downloads
  * the specified image, converts it to a data URL, and returns it.
  *
- * TODO: Implement filtering
+ * TODO: Provide more generic filtering API.
  *
  * @param req.body.url {String} The url of the image to be filtered.
  * @return {String} The data URL representation of the filtered image.
@@ -78,7 +89,13 @@ app.post('/api/filter', function (req, res) {
 	imageDownloader.get(req.body.url).then(function (img) {
 	    var canvas = new Canvas(img.width, img.height);
 	    var context = canvas.getContext('2d');
+
 	    context.drawImage(img, 0, 0);
+
+	    var imgData = context.getImageData(0, 0, img.width, img.height);
+	    var filteredImgData = imageFilterer.convolve(imgData, weights);
+	    
+	    context.putImageData(filteredImgData, 0, 0);
 	    res.send(canvas.toDataURL());
 	}).catch(function (err) {
 	    if ('ENOTFOUND' == err.code) {
