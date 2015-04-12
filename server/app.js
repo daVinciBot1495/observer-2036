@@ -56,10 +56,50 @@ var request = require('request');
 var ImageCreator = require('./lib/image-creator').ImageCreator;
 var ImageFilterer = require('./lib/image-filterer').ImageFilterer;
 var ImageDownloader = require('./lib/image-downloader').ImageDownloader;
-var imageFilterer = new ImageFilterer(new ImageCreator(new Canvas()));
+var GaussianFilter = require('./lib/gaussian-filter').GaussianFilter;
+var GaborFilter = require('./lib/gabor-filter').GaborFilter;
+var GrayscaleFilter = require('./lib/grayscale-filter').GrayscaleFilter;
+var CannyFilter = require('./lib/canny-filter').CannyFilter;
+
+var FilterCreator = require('./lib/filter-creator').FilterCreator;
+var GaussianFilterCreator = require('./lib/gaussian-filter-creator').GaussianFilterCreator;
+var GaborFilterCreator = require('./lib/gabor-filter-creator').GaborFilterCreator;
+
+var filterCreator = new FilterCreator();
+var gaussianFilterCreator = new GaussianFilterCreator(filterCreator);
+var gaborFilterCreator = new GaborFilterCreator(filterCreator);
+
+var imageCreator = new ImageCreator(new Canvas());
+var imageFilterer = new ImageFilterer(imageCreator);
+var grayscaleFilter = new GrayscaleFilter(imageCreator);
+var gaussianFilter = new GaussianFilter(
+    gaussianFilterCreator,
+    imageFilterer);
+var gaborFilter = new GaborFilter(
+    gaborFilterCreator,
+    grayscaleFilter,
+    imageFilterer);
+var cannyFilter = new CannyFilter(grayscaleFilter, imageFilterer);
+
 var filterMap = {
-    gaussian: imageFilterer.gaussianFilter(9, 2.0),
-    gabor: imageFilterer.gaborFilter(9, 1.5 * Math.PI, 4 * Math.PI / 4, 2.0, 1.0)
+    grayscale: grayscaleFilter,
+    gaussian: gaussianFilter,
+    gabor: gaborFilter,
+    canny: cannyFilter
+};
+
+var filterParamsMap = {
+    gaussian: {
+	width: 9,
+	sigma: 2.0
+    },
+    gabor: {
+	width: 9,
+	lambda: 1.5 * Math.PI,
+	theta: 2 * Math.PI / 4,
+	sigma: 2.0,
+	gamma: 1.0
+    }
 };
 
 function sendError(res, status, message) {
@@ -92,11 +132,12 @@ app.post('/api/filter', function (req, res) {
 
 	    context.drawImage(img, 0, 0);
 
-	    var weights = filterMap[req.body.filter];
+	    var filter = req.body.filter;
 	    var imgData = context.getImageData(0, 0, img.width, img.height);
-	    var filteredImgData = imageFilterer.convolve(imgData, weights);
 	    
-	    context.putImageData(filteredImgData, 0, 0);
+	    filterMap[filter].apply(imgData, filterParamsMap[filter], imgData);
+	    context.putImageData(imgData, 0, 0);
+
 	    res.send(canvas.toDataURL());
 	}).catch(function (err) {
 	    if ('ENOTFOUND' == err.code) {
